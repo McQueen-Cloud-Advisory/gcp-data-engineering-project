@@ -12,22 +12,37 @@ provider "google" {
   zone    = "us-east4-a"
 }
 
-resource "google_bigquery_dataset" "dataset" {
-  dataset_id    = "example_dataset"
-  friendly_name = "test"
-  description   = "This is a test description"
+resource "google_bigquery_dataset" "raw_dataset" {
+  dataset_id    = "raw_dataset"
+  friendly_name = "raw"
+  description   = "Raw data for analytics project"
   location      = "US"
 
   labels = {
     env = "dev"
   }
+}
 
-  access {
-    role          = "roles/bigquery.dataEditor"
-    user_by_email = google_service_account.bqeditor.email
+resource "google_bigquery_dataset" "analytics_dataset" {
+  dataset_id    = "analytics_dataset"
+  friendly_name = "analytics"
+  description   = "Cleaned data for analytics project"
+  location      = "US"
+
+  labels = {
+    env = "dev"
   }
 }
 
 resource "google_service_account" "bqeditor" {
   account_id = "bqeditor"
+}
+
+resource "google_storage_bucket" "ingestion" {
+  name          = "exemplary-oath-501101-p8-dev-ingestion"
+  location      = "US"
+  storage_class = "STANDARD"
+  force_destroy = true
+
+  uniform_bucket_level_access = true
 }
