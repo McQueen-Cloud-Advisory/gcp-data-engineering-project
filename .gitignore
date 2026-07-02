@@ -7,7 +7,7 @@
 *.tfvars.json
 
 crash.log
-creash.*.log
+crash.*.log
 
 *.tfplan
 
@@ -18,3 +18,7 @@ override.tf.json
 
 .terraformrc
 terraform.rc
+
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/

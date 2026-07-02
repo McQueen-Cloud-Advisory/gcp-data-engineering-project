@@ -1,0 +1,136 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Raw data from the source system"
+    database: exemplary-oath-501101-p8
+    schema: raw_dataset
+
+    tables:
+      - name: raw_airline_ontime_performance
+        description: "A table containing raw data"
+        columns:
+          - name: QUARTER
+            description: "The quarter of the year"
+          - name: MONTH
+            description: "The month of the year"
+          - name: DAY_OF_MONTH
+            description: "The day of the month"
+          - name: DAY_OF_WEEK
+            description: "The day of the week"
+          - name: FL_DATE
+            description: "The flight date"
+          - name: MKT_UNIQUE_CARRIER
+            description: "The unique carrier code"
+          - name: SCH_OP_CARRIER_FL_NUM
+            description: "The scheduled operation carrier flight number"
+          - name: OP_UNIQUE_CARRIER
+            description: "The operational unique carrier code"
+          - name: ORIGIN_AIRPORT_ID
+            description: "The origin airport ID"
+          - name: ORIGIN_AIRPORT_SEQ_ID
+            description: "The origin airport sequence ID"
+          - name: ORIGIN_CITY_MARKET_ID
+            description: "The origin city market ID"
+          - name: ORIGIN
+            description: "The origin airport code"
+          - name: ORIGIN_CITY_NAME
+            description: "The origin city name"
+          - name: ORIGIN_STATE_ABR
+            description: "The origin state abbreviation"
+          - name: ORIGIN_STATE_FIPS
+            description: "The origin state FIPS code"
+          - name: ORIGIN_STATE_NM
+            description: "The origin state name"
+          - name: ORIGIN_WAC
+            description: "The origin WAC code"
+          - name: DEST_AIRPORT_ID
+            description: "The destination airport ID"
+          - name: DEST_AIRPORT_SEQ_ID
+            description: "The destination airport sequence ID"
+          - name: DEST_CITY_MARKET_ID
+            description: "The destination city market ID"
+          - name: DEST
+            description: "The destination airport code"
+          - name: DEST_CITY_NAME
+            description: "The destination city name"
+          - name: DEST_STATE_ABR
+            description: "The destination state abbreviation"
+          - name: DEST_STATE_FIPS
+            description: "The destination state FIPS code"
+          - name: DEST_STATE_NM
+            description: "The destination state name"
+          - name: DEST_WAC
+            description: "The destination WAC code"
+          - name: CRS_DEP_TIME
+            description: "The scheduled departure time"
+          - name: DEP_TIME
+            description: "The actual departure time"
+          - name: DEP_DELAY
+            description: "The departure delay in minutes"
+          - name: DEP_DELAY_NEW
+            description: "The new departure delay in minutes"
+          - name: DEP_DEL15
+            description: "Indicator if departure delay is greater than 15 minutes"
+          - name: DEP_DELAY_GROUP
+            description: "The departure delay group"
+          - name: DEP_TIME_BLK
+            description: "The departure time block"
+          - name: TAXI_OUT
+            description: "The taxi out time in minutes"
+          - name: WHEELS_OFF
+            description: "The wheels off time"
+          - name: WHEELS_ON
+            description: "The wheels on time"
+          - name: TAXI_IN
+            description: "The taxi in time in minutes"
+          - name: CRS_ARR_TIME
+            description: "The scheduled arrival time"
+          - name: ARR_TIME
+            description: "The actual arrival time"
+          - name: ARR_DELAY
+            description: "The arrival delay in minutes"
+          - name: ARR_DELAY_NEW
+            description: "The new arrival delay in minutes"
+          - name: ARR_DEL15
+            description: "Indicator if arrival delay is greater than 15 minutes"
+          - name: ARR_DELAY_GROUP
+            description: "The arrival delay group"
+          - name: ARR_TIME_BLK
+            description: "The arrival time block"
+          - name: CANCELLED
+            description: "Indicator if the flight was cancelled"
+          - name: CANCELLATION_CODE
+            description: "The cancellation code"
+          - name: DIVERTED
+            description: "Indicator if the flight was diverted"
+          - name: DUP
+            description: "Indicator if the flight is a duplicate"
+          - name: CRS_ELAPSED_TIME
+            description: "The scheduled elapsed time"
+          - name: ACTUAL_ELAPSED_TIME
+            description: "The actual elapsed time"
+          - name: AIR_TIME
+            description: "The air time"
+          - name: FLIGHTS
+            description: "The number of flights"
+          - name: DISTANCE
+            description: "The distance"
+          - name: DISTANCE_GROUP
+            description: "The distance group"
+          - name: CARRIER_DELAY
+            description: "The carrier delay in minutes"
+          - name: WEATHER_DELAY
+            description: "The weather delay in minutes"
+          - name: NAS_DELAY
+            description: "The NAS delay in minutes"
+          - name: SECURITY_DELAY
+            description: "The security delay in minutes"
+          - name: FIRST_DEP_TIME
+            description: "The first departure time"
+          - name: TOTAL_ADD_GTIME
+            description: "The total additional ground time"
+          - name: LONGEST_ADD_GTIME
+            description: "The longest additional ground time"
+          - name: DIV_AIRPORT_LANDINGS
+            description: "The number of diverted airport landings"

@@ -1,0 +1,7 @@
+name: gcp-data-engineering-project
+version: '2.0.0'
+config-version: 2
+
+profile: gcp-data-engineering-profile
+
+model-paths: ["models"]
