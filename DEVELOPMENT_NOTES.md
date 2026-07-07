@@ -8,9 +8,27 @@ It is written to show not only the final architecture, but also how the architec
 
 ## Project Status
 
-The project currently has a working infrastructure foundation, a loaded monthly source sample, and a valid dbt-to-BigQuery connection.
+The project currently has a working first vertical slice:
 
-The transformation and automated ingestion layers are still under development.
+```text
+Terraform-provisioned Google Cloud infrastructure
+        ↓
+Cloud Storage landing bucket
+        ↓
+Raw BigQuery table
+        ↓
+dbt source declaration
+        ↓
+dbt staging model
+        ↓
+Analytics BigQuery dataset
+        ↓
+dbt tests
+```
+
+The infrastructure foundation, raw data load, dbt source declaration, first staging model, and initial dbt tests are complete.
+
+The automated ingestion, intermediate models, marts, expanded testing, CI/CD, and Cloud Run scheduling layers are still under development.
 
 ## Initial Scope
 
@@ -265,6 +283,117 @@ sources
 
 The dbt connection test now completes successfully.
 
+## Phase 5: First dbt Staging Model
+
+The first dbt staging model was created for the airline on-time performance source table.
+
+The model reads from the raw BigQuery table and writes to the analytics dataset.
+
+### Staging model responsibilities
+
+The staging model currently performs the following transformations:
+
+- trims string fields;
+- converts blank strings to nulls;
+- safely casts numeric-looking source fields to `NUMERIC`;
+- parses the flight date from a timestamp-like string into a true date field;
+- converts cancellation and diversion indicators into boolean fields;
+- standardizes raw source names into cleaner staging names; and
+- preserves one row per raw source record.
+
+### Source data issues encountered
+
+Several source-data issues appeared immediately during staging development.
+
+#### Header row loaded as data
+
+The first raw table load accidentally included the CSV header row as a data row. This caused BigQuery to fail when trying to cast the literal value `QUARTER` as a numeric field.
+
+The table was reloaded with the header row skipped rather than modifying the source file manually.
+
+This preserved the source-file format and established the correct future ingestion behavior.
+
+#### Date values stored as timestamp-like strings
+
+The `FL_DATE` field appeared as values such as:
+
+```text
+1/1/2026 12:00:00 AM
+```
+
+A direct date cast was not appropriate because the value included a time component.
+
+The staging model parses the value using the known datetime format and converts it into a true date field.
+
+#### Numeric fields stored with decimal formatting
+
+Several fields that are logically integer-like appeared in the source as decimal-formatted strings, such as:
+
+```text
+-5.00
+0.00
+1.00
+```
+
+Direct casts to integer types failed. The first staging model therefore uses `NUMERIC` for source fields that appear numeric.
+
+Integer tightening may occur later after profiling confirms which fields are safe to narrow.
+
+#### Boolean indicators stored as numeric strings
+
+Cancellation and diversion fields were represented as numeric indicators.
+
+The staging model converts these fields into boolean values:
+
+```text
+1 → TRUE
+0 → FALSE
+```
+
+Unexpected or malformed values become null, allowing tests and profiling to surface data-quality issues rather than hiding them.
+
+### Staging design decision
+
+The staging model uses defensive conversion patterns rather than strict casts.
+
+This is intentional. The raw table preserves source values as strings, while the staging model introduces meaning through controlled parsing, trimming, null handling, and safe casting.
+
+The goal is to prevent one malformed value from breaking the entire model while still making data-quality issues visible.
+
+## Phase 6: Initial dbt Tests
+
+A staging model properties file was added for `stg_bts_on_time_performance`.
+
+Initial tests were added for critical fields:
+
+- flight date;
+- marketing carrier;
+- origin airport;
+- destination airport;
+- cancellation flag; and
+- diversion flag.
+
+All initial tests passed.
+
+### Initial test scope
+
+The first tests are intentionally simple. They confirm that the staging model produces non-null values for fields that should be required for basic flight-level analysis.
+
+The next testing increment should add:
+
+- accepted values for boolean fields;
+- row-count comparison between raw and staging;
+- invalid conversion checks;
+- duplicate candidate-key checks;
+- null-rate checks for important operational fields; and
+- source freshness or ingestion-batch checks after automated ingestion exists.
+
+### Lesson
+
+Passing tests do not prove the model is complete. They prove that the first validation layer exists and can be expanded.
+
+This is an important distinction. The project now has a working testing pattern, but the data-quality suite is still immature.
+
 ## Repository Hygiene
 
 The root `.gitignore` excludes:
@@ -310,57 +439,117 @@ BigQuery raw dataset
         |
         | declared as a dbt source
         v
-dbt staging models
+dbt staging model
         |
+        | type conversion, trimming, null handling, date parsing, boolean standardization
         v
 BigQuery analytics dataset
+        |
+        | initial dbt tests
+        v
+Validated staging table
 ```
 
-Cloud Run automation is intentionally deferred until the source loading and transformation behavior are understood.
+Cloud Run automation is intentionally deferred until the source loading, schema behavior, and transformation logic are understood.
+
+The current pipeline is not yet fully automated, but the core data flow has been proven manually from raw source data into a tested analytics-layer dbt model.
 
 ## Next Implementation Steps
 
-### 1. Build the first staging model
+### 1. Validate staging output
 
-The first staging model should:
+Before building additional models, the staging output should be profiled.
 
-- select from the declared dbt source;
-- rename source columns into consistent snake_case;
-- convert empty strings to null;
-- cast dates and numeric measures;
-- standardize binary indicators;
-- interpret scheduled and actual flight times;
-- retain source traceability; and
-- expose invalid conversions.
+Immediate validation checks:
 
-### 2. Add tests
+- raw row count equals staging row count;
+- flight date parse failures;
+- unexpected nulls in required fields;
+- numeric conversion failures;
+- unexpected null cancellation or diversion flags;
+- duplicate candidate flight records; and
+- malformed or unusual time-field values.
 
-Initial tests should cover:
+### 2. Strengthen dbt tests
 
-- required flight dates;
-- required carrier codes;
-- required origin and destination codes;
-- expected cancellation indicators;
-- successful conversion of critical numerical fields;
-- accepted categorical values; and
-- candidate flight-level uniqueness.
+Initial dbt tests passed, but the test suite should be expanded.
 
-A natural key must be evaluated rather than assumed. Carrier, flight number, date, origin, destination, and scheduled departure may be required to identify a flight record.
+Planned tests include:
 
-### 3. Profile the source data
+- accepted values for boolean fields;
+- non-null tests for core identifiers;
+- accepted ranges for month, day, quarter, and day-of-week fields;
+- not-null tests for flight-date and route-defining fields;
+- duplicate checks once the natural grain is finalized;
+- relationship tests once dimension tables exist; and
+- custom tests for failed casts or invalid source values.
 
-Before building marts, the project should determine:
+### 3. Evaluate the flight-level grain
 
-- null rates;
-- duplicate rates;
-- invalid numeric values;
-- malformed dates;
-- unusual flight times;
-- cancellation behavior;
-- diverted-flight behavior; and
-- differences in row counts between raw and staging.
+A natural key must be evaluated rather than assumed.
 
-### 4. Build intermediate models
+Candidate fields include:
+
+- flight date;
+- operating carrier;
+- marketing carrier;
+- flight number;
+- origin;
+- destination;
+- scheduled departure time; and
+- duplicate indicator.
+
+The fact table should not be built until the project clearly defines what one row represents.
+
+The expected grain is currently:
+
+```text
+one row per scheduled flight record
+```
+
+but this needs to be confirmed against the source data.
+
+### 4. Build the first fact model
+
+The next model should be a flight-level fact table.
+
+Initial `fct_flights` responsibilities:
+
+- select trusted staged fields;
+- define the grain;
+- include core date, carrier, airport, route, cancellation, diversion, delay, duration, and distance fields;
+- exclude raw-only fields that are not analytically useful yet;
+- preserve enough identifiers to trace back to staging; and
+- provide a stable base for future marts.
+
+### 5. Handle time fields
+
+The current staging model leaves airline time fields as cleaned strings.
+
+Fields requiring later handling include:
+
+```text
+crs_dep_time
+dep_time
+wheels_off
+wheels_on
+crs_arr_time
+arr_time
+first_dep_time
+```
+
+These fields require special logic because source values may be stored in compact formats such as:
+
+```text
+5
+55
+1230
+2400
+```
+
+Time normalization should be handled carefully, especially for overnight flights and arrival dates that may roll into the next day.
+
+### 6. Build intermediate models
 
 Potential reusable logic includes:
 
@@ -372,7 +561,7 @@ Potential reusable logic includes:
 - airport-hour aggregation; and
 - operational reliability measures.
 
-### 5. Build marts
+### 7. Build marts
 
 Planned marts include:
 
@@ -390,7 +579,7 @@ mart_delay_causes
 
 Final model structure will be based on actual analytical requirements rather than created solely to mimic a generic star schema.
 
-### 6. Automate ingestion
+### 8. Automate ingestion
 
 After manual loading and transformation are stable:
 
@@ -421,7 +610,7 @@ The job should support:
 - logging; and
 - explicit failure behavior.
 
-### 7. Add CI/CD
+### 9. Add CI/CD
 
 Planned GitHub Actions checks include:
 
@@ -470,15 +659,23 @@ Completed work, planned work, and unresolved decisions are documented separately
 This project demonstrates the ability to:
 
 - learn a new infrastructure-as-code tool through direct implementation;
-- provision and manage Google Cloud resources;
-- diagnose cloud authentication and quota-project failures;
-- reason about authoritative IAM behavior;
-- manage resource dependencies and destruction;
+- provision and manage Google Cloud resources with Terraform;
+- validate the full Terraform lifecycle, including create, update, and destroy behavior;
+- diagnose cloud authentication, Application Default Credentials, and quota-project issues;
+- reason about authoritative IAM and BigQuery dataset-access behavior;
+- manage resource dependencies and deletion constraints;
 - design separate raw and analytics warehouse layers;
 - preserve messy source data before transformation;
-- configure dbt against BigQuery;
-- document a wide source schema;
-- maintain secure repository boundaries; and
-- reduce an overambitious architecture into testable delivery increments.
+- load real public data into BigQuery;
+- configure dbt against BigQuery using OAuth instead of committed service-account keys;
+- declare and document a wide raw source schema;
+- build a first dbt staging model;
+- safely parse dates, numeric values, strings, and boolean indicators from raw source data;
+- add and run dbt tests against the staging layer;
+- maintain secure repository boundaries through `.gitignore`;
+- reduce an overambitious architecture into testable delivery increments; and
+- document not just what worked, but what failed and how it was corrected.
 
 The project is unfinished by design. The repository is intended to show the development process and engineering decisions as the pipeline progresses, rather than publishing only a polished final state.
+
+The current milestone is the first working vertical slice: Terraform-provisioned infrastructure, raw data loaded into BigQuery, dbt source declaration, staging transformation, analytics-layer output, and passing initial dbt tests.
