@@ -4,74 +4,80 @@ with source_data as (
 )
 
 SELECT
-    ,CAST(QUARTER AS INTEGER)               as quarter
-    ,CAST(MONTH AS INTEGER)                 as month
-    ,CAST(DAY_OF_MONTH AS INTEGER)          as day_of_month
-    ,CAST(DAY_OF_WEEK AS INTEGER)           as day_of_week
-    ,DATE(CAST(FL_DATE AS TIMESTAMP))       as fl_date
-    ,CAST(MKT_UNIQUE_CARRIER AS STRING)     as mkt_unique_carrier
-    ,CAST(SCH_OP_CARRIER_FL_NUM AS INTEGER) as sch_op_carrier_fl_num
-    ,CAST(OP_UNIQUE_CARRIER AS STRING)      as op_unique_carrier
-    ,CAST(ORIGIN_AIRPORT_ID AS INTEGER)     as origin_airport_id
-    ,CAST(ORIGIN_AIRPORT_SEQ_ID AS INTEGER) as origin_airport_seq_id
-    ,CAST(ORIGIN_CITY_MARKET_ID AS INTEGER) as origin_city_market_id
-    ,CAST(ORIGIN AS STRING)                 as origin
-    ,CAST(ORIGIN_CITY_NAME AS STRING)       as origin_city_name
-    ,CAST(ORIGIN_STATE_ABR AS STRING)       as origin_state_abr
-    ,CAST(ORIGIN_STATE_FIPS AS STRING)      as origin_state_fips
-    ,CAST(ORIGIN_STATE_NM AS STRING)        as origin_state_nm
-    ,CAST(ORIGIN_WAC AS INTEGER)            as origin_wac
-    ,CAST(DEST_AIRPORT_ID AS INTEGER)       as dest_airport_id
-    ,CAST(DEST_AIRPORT_SEQ_ID AS INTEGER)   as dest_airport_seq_id
-    ,CAST(DEST_CITY_MARKET_ID AS INTEGER)   as dest_city_market_id
-    ,CAST(DEST AS STRING)                   as dest
-    ,CAST(DEST_CITY_NAME AS STRING)         as dest_city_name
-    ,CAST(DEST_STATE_ABR AS STRING)         as dest_state_abr
-    ,CAST(DEST_STATE_FIPS AS STRING)        as dest_state_fips
-    ,CAST(DEST_STATE_NM AS STRING)          as dest_state_nm
-    ,CAST(DEST_WAC AS INTEGER)              as dest_wac
-    ,CAST(CRS_DEP_TIME AS STRING)           as crs_dep_time
-    ,CAST(DEP_TIME AS STRING)               as dep_time
-    ,CAST(DEP_DELAY AS INTEGER)             as dep_delay
-    ,CAST(DEP_DELAY_NEW AS INTEGER)         as dep_delay_new
-    ,CAST(DEP_DEL15 AS INTEGER)             as dep_del15
-    ,CAST(DEP_DELAY_GROUP AS INTEGER)       as dep_delay_group
-    ,CAST(DEP_TIME_BLK AS STRING)           as dep_time_blk
-    ,CAST(TAXI_OUT AS INTEGER)              as taxi_out
-    ,CAST(WHEELS_OFF AS STRING)             as wheels_off
-    ,CAST(WHEELS_ON AS STRING)              as wheels_on
-    ,CAST(TAXI_IN AS INTEGER)               as taxi_in
-    ,CAST(CRS_ARR_TIME AS STRING)           as crs_arr_time
-    ,CAST(ARR_TIME AS STRING)               as arr_time
-    ,CAST(ARR_DELAY AS INTEGER)             as arr_delay
-    ,CAST(ARR_DELAY_NEW AS INTEGER)         as arr_delay_new
-    ,CAST(ARR_DEL15 AS INTEGER)             as arr_del15
-    ,CAST(ARR_DELAY_GROUP AS INTEGER)       as arr_delay_group
-    ,CAST(ARR_TIME_BLK AS STRING)           as arr_time_blk
+    SAFE_CAST(NULLIF(TRIM(QUARTER), '') AS NUMERIC)                as quarter
+    ,SAFE_CAST(NULLIF(TRIM(MONTH), '') AS NUMERIC)                 as month
+    ,SAFE_CAST(NULLIF(TRIM(DAY_OF_MONTH), '') AS NUMERIC)          as day_of_month
+    ,SAFE_CAST(NULLIF(TRIM(DAY_OF_WEEK), '') AS NUMERIC)           as day_of_week
+    ,DATE(
+        SAFE.PARSE_DATETIME(
+            '%m/%d/%Y %I:%M:%S %p',
+            TRIM(FL_DATE)
+        )
+    ) as fl_date
+    ,NULLIF(TRIM(MKT_UNIQUE_CARRIER), '')     as mkt_unique_carrier
+    ,SAFE_CAST(NULLIF(TRIM(SCH_OP_CARRIER_FL_NUM), '') AS NUMERIC) as sch_op_carrier_fl_num
+    ,NULLIF(TRIM(OP_UNIQUE_CARRIER), '')      as op_unique_carrier
+    ,SAFE_CAST(NULLIF(TRIM(ORIGIN_AIRPORT_ID), '') AS NUMERIC)     as origin_airport_id
+    ,SAFE_CAST(NULLIF(TRIM(ORIGIN_AIRPORT_SEQ_ID), '') AS NUMERIC) as origin_airport_seq_id
+    ,SAFE_CAST(NULLIF(TRIM(ORIGIN_CITY_MARKET_ID), '') AS NUMERIC) as origin_city_market_id
+    ,NULLIF(TRIM(ORIGIN), '')                 as origin
+    ,NULLIF(TRIM(ORIGIN_CITY_NAME), '')       as origin_city_name
+    ,NULLIF(TRIM(ORIGIN_STATE_ABR), '')       as origin_state_abr
+    ,NULLIF(TRIM(ORIGIN_STATE_FIPS), '')      as origin_state_fips
+    ,NULLIF(TRIM(ORIGIN_STATE_NM), '')        as origin_state_nm
+    ,SAFE_CAST(NULLIF(TRIM(ORIGIN_WAC), '') AS NUMERIC)            as origin_wac
+    ,SAFE_CAST(NULLIF(TRIM(DEST_AIRPORT_ID), '') AS NUMERIC)       as dest_airport_id
+    ,SAFE_CAST(NULLIF(TRIM(DEST_AIRPORT_SEQ_ID), '') AS NUMERIC)   as dest_airport_seq_id
+    ,SAFE_CAST(NULLIF(TRIM(DEST_CITY_MARKET_ID), '') AS NUMERIC)   as dest_city_market_id
+    ,NULLIF(TRIM(DEST), '')                   as dest
+    ,NULLIF(TRIM(DEST_CITY_NAME), '')         as dest_city_name
+    ,NULLIF(TRIM(DEST_STATE_ABR), '')         as dest_state_abr
+    ,NULLIF(TRIM(DEST_STATE_FIPS), '')        as dest_state_fips
+    ,NULLIF(TRIM(DEST_STATE_NM), '')          as dest_state_nm
+    ,SAFE_CAST(NULLIF(TRIM(DEST_WAC), '') AS NUMERIC)              as dest_wac
+    ,NULLIF(TRIM(CRS_DEP_TIME), '')           as crs_dep_time
+    ,NULLIF(TRIM(DEP_TIME), '')               as dep_time
+    ,SAFE_CAST(NULLIF(TRIM(DEP_DELAY), '') AS NUMERIC)             as dep_delay
+    ,SAFE_CAST(NULLIF(TRIM(DEP_DELAY_NEW), '') AS NUMERIC)         as dep_delay_new
+    ,SAFE_CAST(NULLIF(TRIM(DEP_DEL15), '') AS NUMERIC)             as dep_del15
+    ,SAFE_CAST(NULLIF(TRIM(DEP_DELAY_GROUP), '') AS NUMERIC)       as dep_delay_group
+    ,NULLIF(TRIM(DEP_TIME_BLK), '')           as dep_time_blk
+    ,SAFE_CAST(NULLIF(TRIM(TAXI_OUT), '') AS NUMERIC)              as taxi_out
+    ,NULLIF(TRIM(WHEELS_OFF), '')             as wheels_off
+    ,NULLIF(TRIM(WHEELS_ON), '')              as wheels_on
+    ,SAFE_CAST(NULLIF(TRIM(TAXI_IN), '') AS NUMERIC)               as taxi_in
+    ,NULLIF(TRIM(CRS_ARR_TIME), '')           as crs_arr_time
+    ,NULLIF(TRIM(ARR_TIME), '')               as arr_time
+    ,SAFE_CAST(NULLIF(TRIM(ARR_DELAY), '') AS NUMERIC)             as arr_delay
+    ,SAFE_CAST(NULLIF(TRIM(ARR_DELAY_NEW), '') AS NUMERIC)         as arr_delay_new
+    ,SAFE_CAST(NULLIF(TRIM(ARR_DEL15), '') AS NUMERIC)             as arr_del15
+    ,SAFE_CAST(NULLIF(TRIM(ARR_DELAY_GROUP), '') AS NUMERIC)       as arr_delay_group
+    ,NULLIF(TRIM(ARR_TIME_BLK), '')           as arr_time_blk
     ,CASE 
-        WHEN TRIM(CAST(CANCELLED AS STRING)) = '1' THEN TRUE 
-        WHEN TRIM(CAST(CANCELLED AS STRING)) = '0' THEN FALSE
+        WHEN SAFE_CAST(NULLIF(TRIM(CANCELLED), '') AS NUMERIC) = 1 THEN TRUE 
+        WHEN SAFE_CAST(NULLIF(TRIM(CANCELLED), '') AS NUMERIC) = 0 THEN FALSE
         ELSE NULL
     END as is_cancelled
-    ,CAST(CANCELLATION_CODE AS STRING)      as cancellation_code
+    ,NULLIF(TRIM(CANCELLATION_CODE), '')      as cancellation_code
     ,CASE 
-        WHEN TRIM(CAST(DIVERTED AS STRING)) = '1' THEN TRUE
-        WHEN TRIM(CAST(DIVERTED AS STRING)) = '0' THEN FALSE
+        WHEN SAFE_CAST(NULLIF(TRIM(DIVERTED), '') AS NUMERIC) = 1 THEN TRUE
+        WHEN SAFE_CAST(NULLIF(TRIM(DIVERTED), '') AS NUMERIC) = 0 THEN FALSE
         ELSE NULL
     END as is_diverted
-    ,CAST(DUP AS STRING)                    as dup
-    ,CAST(CRS_ELAPSED_TIME AS INTEGER)      as crs_elapsed_time
-    ,CAST(ACTUAL_ELAPSED_TIME AS INTEGER)   as actual_elapsed_time
-    ,CAST(AIR_TIME AS INTEGER)              as air_time
-    ,CAST(FLIGHTS AS INTEGER)               as flights
-    ,CAST(DISTANCE AS INTEGER)              as distance
-    ,CAST(DISTANCE_GROUP AS INTEGER)        as distance_group
-    ,CAST(CARRIER_DELAY AS INTEGER)         as carrier_delay
-    ,CAST(WEATHER_DELAY AS INTEGER)         as weather_delay
-    ,CAST(NAS_DELAY AS INTEGER)             as nas_delay
-    ,CAST(SECURITY_DELAY AS INTEGER)        as security_delay
-    ,CAST(FIRST_DEP_TIME AS STRING)         as first_dep_time
-    ,CAST(TOTAL_ADD_GTIME AS INTEGER)       as total_add_gtime
-    ,CAST(LONGEST_ADD_GTIME AS INTEGER)     as longest_add_gtime
-    ,CAST(DIV_AIRPORT_LANDINGS AS INTEGER)  as div_airport_landings
+    ,NULLIF(TRIM(DUP), '')                    as dup
+    ,SAFE_CAST(NULLIF(TRIM(CRS_ELAPSED_TIME), '') AS NUMERIC)      as crs_elapsed_time
+    ,SAFE_CAST(NULLIF(TRIM(ACTUAL_ELAPSED_TIME), '') AS NUMERIC)   as actual_elapsed_time
+    ,SAFE_CAST(NULLIF(TRIM(AIR_TIME), '') AS NUMERIC)              as air_time
+    ,SAFE_CAST(NULLIF(TRIM(FLIGHTS), '') AS NUMERIC)               as flights
+    ,SAFE_CAST(NULLIF(TRIM(DISTANCE), '') AS NUMERIC)              as distance
+    ,SAFE_CAST(NULLIF(TRIM(DISTANCE_GROUP), '') AS NUMERIC)        as distance_group
+    ,SAFE_CAST(NULLIF(TRIM(CARRIER_DELAY), '') AS NUMERIC)         as carrier_delay
+    ,SAFE_CAST(NULLIF(TRIM(WEATHER_DELAY), '') AS NUMERIC)         as weather_delay
+    ,SAFE_CAST(NULLIF(TRIM(NAS_DELAY), '') AS NUMERIC)             as nas_delay
+    ,SAFE_CAST(NULLIF(TRIM(SECURITY_DELAY), '') AS NUMERIC)        as security_delay
+    ,NULLIF(TRIM(FIRST_DEP_TIME), '')         as first_dep_time
+    ,SAFE_CAST(NULLIF(TRIM(TOTAL_ADD_GTIME), '') AS NUMERIC)       as total_add_gtime
+    ,SAFE_CAST(NULLIF(TRIM(LONGEST_ADD_GTIME), '') AS NUMERIC)     as longest_add_gtime
+    ,SAFE_CAST(NULLIF(TRIM(DIV_AIRPORT_LANDINGS), '') AS NUMERIC)  as div_airport_landings
+
 FROM source_data

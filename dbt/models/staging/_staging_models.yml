@@ -1,0 +1,23 @@
+version: 2
+
+models: 
+  - name: stg_bts_on_time_performance
+    columns:
+      - name: fl_date
+        data_tests:
+          - not_null
+      - name: mkt_unique_carrier
+        data_tests:
+          - not_null
+      - name: origin
+        data_tests:
+          - not_null
+      - name: dest
+        data_tests:
+          - not_null
+      - name: is_cancelled
+        data_tests:
+          - not_null
+      - name: is_diverted
+        data_tests:
+          - not_null
