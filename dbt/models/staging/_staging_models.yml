@@ -2,6 +2,10 @@ version: 2
 
 models: 
   - name: stg_bts_on_time_performance
+    data_tests:
+      - dbt_utils.equal_rowcount:
+          arguments:
+            compare_model: source('raw', 'raw_airline_ontime_performance')
     columns:
       - name: fl_date
         data_tests:
