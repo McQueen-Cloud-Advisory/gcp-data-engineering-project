@@ -24,9 +24,11 @@ dbt staging model
 Analytics BigQuery dataset
         ↓
 dbt tests
+        ↓
+notebook-based staging validation
 ```
 
-The infrastructure foundation, raw data load, dbt source declaration, first staging model, and initial dbt tests are complete.
+The infrastructure foundation, raw data load, dbt source declaration, first staging model, initial dbt tests, and first notebook-based validation pass are complete.
 
 The automated ingestion, intermediate models, marts, expanded testing, CI/CD, and Cloud Run scheduling layers are still under development.
 
@@ -394,6 +396,131 @@ Passing tests do not prove the model is complete. They prove that the first vali
 
 This is an important distinction. The project now has a working testing pattern, but the data-quality suite is still immature.
 
+## Phase 7: Notebook-Based Staging Validation
+
+A development notebook was added under the repository's `notebooks` directory to preserve the first staging-validation analysis.
+
+The notebook is intended to be a development and validation artifact, not a production pipeline component.
+
+Planned location:
+
+```text
+notebooks/01_staging_validation.ipynb
+```
+
+### Notebook purpose
+
+The notebook validates the first raw-to-staging transformation before downstream fact and mart models are built.
+
+The validation focuses on:
+
+- row-count preservation from raw to staging;
+- column-count preservation for the current first staging pass;
+- flight-date parsing;
+- numeric conversion behavior;
+- boolean conversion behavior;
+- required-field null checks;
+- candidate grain analysis; and
+- documentation of unresolved natural-key limitations.
+
+### Notebook scope decision
+
+The notebook is intentionally committed as the source `.ipynb` artifact.
+
+HTML and PDF exports were considered but were not adopted as required project artifacts.
+
+The HTML export path encountered notebook rendering issues related to rich widget metadata. The direct PDF export path required a local LaTeX toolchain and additional package installation. Since the repository already preserves the notebook itself, exported HTML and PDF files were not treated as necessary deliverables.
+
+### BigQuery Notebook environment
+
+BigQuery Notebooks were used to speed up exploratory validation and preserve the results as reviewable evidence.
+
+To create and use the notebook runtime, the development environment required:
+
+- BigQuery Unified API enabled;
+- private services access enabled on the default VPC;
+- Private Google Access enabled on the `us-east4` subnet used by the notebook runtime; and
+- notebook runtime creation in `us-east4`.
+
+This configuration is acceptable for the current development exercise. It is not being presented as a production networking pattern.
+
+A production environment would require more deliberate network design, subnet selection, IAM boundaries, private connectivity review, and controls around access to Google APIs.
+
+### Validation structure decision
+
+Some numeric validation checks were intentionally written as separate notebook cells instead of being abstracted into reusable functions.
+
+For this one-off profiling exercise, readability, speed, and ease of review were prioritized over abstraction. If the checks become recurring validation logic, they should be refactored into reusable notebook functions or promoted into dbt tests.
+
+### Row and column validation
+
+The notebook validates that the current staging model preserves both row count and column count.
+
+This is valid for the current first staging pass because the staging model standardizes and types columns but does not intentionally add, drop, or combine source columns.
+
+This validation expectation may change later. Future intermediate, fact, and mart models should not be expected to preserve raw column count.
+
+### Conversion validation
+
+The notebook checks whether populated raw values became null unexpectedly after staging conversion.
+
+Validation areas include:
+
+- flight-date parsing;
+- numeric field conversion;
+- boolean conversion for cancellation and diversion indicators; and
+- unexpected null behavior in required fields.
+
+The purpose is not merely to confirm that dbt runs. The purpose is to prove that the staging model did not silently lose source values during type conversion.
+
+### Candidate grain analysis
+
+A candidate natural grain was evaluated before building the first fact model.
+
+Initial grain fields included:
+
+- flight date;
+- operating carrier;
+- scheduled operating carrier flight number;
+- origin;
+- destination; and
+- scheduled departure time.
+
+The candidate grain was then expanded with additional available fields such as:
+
+- marketing carrier;
+- scheduled arrival time; and
+- duplicate indicator.
+
+The expanded natural key reduced duplicate candidate-key records substantially but did not fully eliminate them.
+
+Manual inspection showed that the remaining duplicate-key rows were associated with Alaska Airlines records where `sch_op_carrier_fl_num` was null. This weakened the available natural key because the only flight-number-like field in the current source schema was not consistently populated for those records.
+
+Adding `is_cancelled` made the remaining rows unique. However, cancellation status is an operational outcome field, not a natural identifier. It should not be used as part of the business grain solely to force uniqueness.
+
+### Grain decision
+
+The staging validation supports the following current fact-table grain:
+
+```text
+one row per source flight record
+```
+
+rather than:
+
+```text
+one row per uniquely identifiable scheduled flight
+```
+
+Because the available natural identifiers do not fully guarantee uniqueness, the first fact model should use a generated surrogate key while retaining the natural-key fields for traceability and analysis.
+
+### Lesson
+
+A natural key should be tested, not assumed.
+
+The analysis showed that the source data does not provide a consistently populated natural flight identifier for every record in the current sample. Documenting that limitation and using a surrogate key is a stronger modeling decision than adding outcome fields to the grain simply to make uniqueness tests pass.
+
+
 ## Repository Hygiene
 
 The root `.gitignore` excludes:
@@ -419,6 +546,15 @@ dbt/target/
 dbt/logs/
 dbt/dbt_packages/
 ```
+
+### Notebook-generated files
+
+```text
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+```
+
+The notebook itself is a committed validation artifact. Checkpoint files and local runtime artifacts are not committed.
 
 The Terraform dependency lock file is committed so provider selection remains reproducible.
 
@@ -448,6 +584,10 @@ BigQuery analytics dataset
         | initial dbt tests
         v
 Validated staging table
+        |
+        | notebook-based profiling and grain analysis
+        v
+Documented staging validation findings
 ```
 
 Cloud Run automation is intentionally deferred until the source loading, schema behavior, and transformation logic are understood.
@@ -456,19 +596,20 @@ The current pipeline is not yet fully automated, but the core data flow has been
 
 ## Next Implementation Steps
 
-### 1. Validate staging output
+### 1. Promote validation findings into model design
 
-Before building additional models, the staging output should be profiled.
+The first notebook-based staging validation pass is complete.
 
-Immediate validation checks:
+The validation confirmed that the staging model preserves the current raw-to-staging shape, safely handles priority conversions, and exposes a natural-key limitation in the source data.
 
-- raw row count equals staging row count;
-- flight date parse failures;
-- unexpected nulls in required fields;
-- numeric conversion failures;
-- unexpected null cancellation or diversion flags;
-- duplicate candidate flight records; and
-- malformed or unusual time-field values.
+Immediate follow-up actions:
+
+- keep the validation notebook in the repository as the supporting analysis artifact;
+- document the final fact-table grain as one row per source flight record;
+- generate a surrogate key in the first fact model;
+- retain natural-key fields for traceability;
+- avoid using outcome fields such as `is_cancelled` as natural identifiers; and
+- promote recurring validation checks into dbt tests where appropriate.
 
 ### 2. Strengthen dbt tests
 
@@ -501,13 +642,13 @@ Candidate fields include:
 
 The fact table should not be built until the project clearly defines what one row represents.
 
-The expected grain is currently:
+The current validated grain is:
 
 ```text
-one row per scheduled flight record
+one row per source flight record
 ```
 
-but this needs to be confirmed against the source data.
+The available natural identifiers do not fully guarantee uniqueness for every record in the current sample. The first fact model should therefore use a generated surrogate key while preserving the natural-key fields for traceability.
 
 ### 4. Build the first fact model
 
@@ -654,7 +795,7 @@ The project uses a limited development sample, serverless services, deliberate q
 
 Completed work, planned work, and unresolved decisions are documented separately. Planned services are not presented as already implemented.
 
-## Hiring-Manager Summary
+## Summary
 
 This project demonstrates the ability to:
 
@@ -672,10 +813,13 @@ This project demonstrates the ability to:
 - build a first dbt staging model;
 - safely parse dates, numeric values, strings, and boolean indicators from raw source data;
 - add and run dbt tests against the staging layer;
+- use a notebook to validate staging output and document modeling decisions;
+- evaluate candidate natural keys rather than assuming grain;
+- recognize when available source identifiers are insufficient and justify surrogate-key usage;
 - maintain secure repository boundaries through `.gitignore`;
 - reduce an overambitious architecture into testable delivery increments; and
 - document not just what worked, but what failed and how it was corrected.
 
 The project is unfinished by design. The repository is intended to show the development process and engineering decisions as the pipeline progresses, rather than publishing only a polished final state.
 
-The current milestone is the first working vertical slice: Terraform-provisioned infrastructure, raw data loaded into BigQuery, dbt source declaration, staging transformation, analytics-layer output, and passing initial dbt tests.
+The current milestone is the first working vertical slice plus validation evidence: Terraform-provisioned infrastructure, raw data loaded into BigQuery, dbt source declaration, staging transformation, analytics-layer output, passing initial dbt tests, and notebook-based staging validation.
