@@ -1,0 +1,38 @@
+version: 2
+
+models: 
+  - name: fct_flights
+    description: >
+      Flight-level fact table with one row per source flight record from the airline on-time performance staging table. 
+      A generated surrogate key was used because available natural flight identifiers were insufficient for uniquely 
+      identifying each record.
+    data_tests:
+      - dbt_utils.equal_rowcount:
+          arguments:
+            compare_model: ref('stg_bts_on_time_performance')
+    columns:
+      - name: flight_record_key
+        data_tests:
+          - not_null
+          - unique
+      - name: fl_date
+        data_tests:
+          - not_null
+      - name: mkt_unique_carrier
+        data_tests:
+          - not_null
+      - name: origin
+        data_tests:
+          - not_null
+      - name: dest
+        data_tests:
+          - not_null
+      - name: is_cancelled
+        data_tests:
+          - not_null
+      - name: is_diverted
+        data_tests:
+          - not_null
+      - name: op_unique_carrier
+        data_tests:
+          - not_null

@@ -26,9 +26,13 @@ Analytics BigQuery dataset
 dbt tests
         ↓
 notebook-based staging validation
+        ↓
+dbt fact model
+        ↓
+fact-level dbt tests
 ```
 
-The infrastructure foundation, raw data load, dbt source declaration, first staging model, initial dbt tests, and first notebook-based validation pass are complete.
+The infrastructure foundation, raw data load, dbt source declaration, first staging model, initial dbt tests, first notebook-based validation pass, first fact model, and initial fact-level tests are complete.
 
 The automated ingestion, intermediate models, marts, expanded testing, CI/CD, and Cloud Run scheduling layers are still under development.
 
@@ -521,6 +525,101 @@ A natural key should be tested, not assumed.
 The analysis showed that the source data does not provide a consistently populated natural flight identifier for every record in the current sample. Documenting that limitation and using a surrogate key is a stronger modeling decision than adding outcome fields to the grain simply to make uniqueness tests pass.
 
 
+## Phase 8: First Fact Model
+
+The first fact model, `fct_flights`, was added after the staging model, dbt tests, and notebook-based candidate-grain analysis were completed.
+
+The fact model reads from the dbt staging model rather than directly from the raw source table. This keeps the warehouse layers separated:
+
+```text
+raw source table
+        ↓
+dbt staging model
+        ↓
+dbt fact model
+```
+
+### Fact-model purpose
+
+The first fact model creates an analytics-ready flight-record table from the validated staging model.
+
+The model responsibilities include:
+
+- preserving one row per source flight record;
+- generating a stable surrogate key;
+- retaining natural identifier fields for traceability;
+- selecting trusted staged fields for analysis;
+- tightening confirmed whole-number fields to `INT64`;
+- carrying cancellation and diversion indicators forward as boolean fields;
+- retaining delay, duration, distance, airport, route, and carrier fields; and
+- providing a stable base for marts and downstream reporting.
+
+### Fact grain
+
+The fact table is defined at the following grain:
+
+```text
+one row per source flight record
+```
+
+This grain was selected because the available natural identifiers did not fully guarantee uniqueness for every record in the current source sample.
+
+A candidate natural key was evaluated using available carrier, date, origin, destination, scheduled-time, airport-sequence, and duplicate-indicator fields. The expanded key reduced duplicate records substantially but did not fully eliminate them.
+
+Manual inspection showed that the remaining duplicate-key records were associated with rows where `sch_op_carrier_fl_num` was null. Adding `is_cancelled` made the remaining rows unique, but cancellation status is an operational outcome field rather than a natural identifier.
+
+Because of this, the fact model uses a generated surrogate key while preserving the available natural-key fields for analysis and traceability.
+
+### Surrogate-key decision
+
+The surrogate key is used to identify fact-table records at the source-record level.
+
+This does not mean the project is treating cancellation status as part of the natural business grain. Instead, the surrogate key supports row-level uniqueness where the source data does not provide a consistently populated natural flight identifier.
+
+This distinction is important:
+
+```text
+Natural grain: not fully reliable with available source fields
+Fact-table grain: one row per source flight record
+Record identity: generated surrogate key
+```
+
+### Type tightening
+
+The staging model keeps parsed numeric fields as `NUMERIC` to safely handle raw string inputs and source formatting variability.
+
+The fact model tightens fields with confirmed whole-number analytical meaning to `INT64`, including airport identifiers, date parts, delay measures, elapsed-time measures, distance fields, and diversion counts.
+
+Time-code fields remain as cleaned strings for now. Fields such as `crs_dep_time`, `dep_time`, `wheels_off`, `wheels_on`, `crs_arr_time`, `arr_time`, and `first_dep_time` require dedicated handling because airline time values may appear in compact forms such as:
+
+```text
+5
+55
+1230
+2400
+```
+
+Time normalization will be handled later in a dedicated intermediate model rather than being forced into the first fact model.
+
+### Fact model tests
+
+Initial dbt tests were added for `fct_flights`.
+
+The tests validate:
+
+- surrogate key non-nullness;
+- surrogate key uniqueness;
+- row-count consistency with the staging model; and
+- non-null values for core analytical fields.
+
+All fact model tests passed.
+
+### Lesson
+
+The fact model was not created by assuming the source data had a clean natural key.
+
+The grain was evaluated first, the source limitation was documented, and the model was designed around a surrogate key where the available natural identifiers were insufficient. This preserves row-level analytical usability without pretending the source provides a perfect scheduled-flight identifier.
+
 ## Repository Hygiene
 
 The root `.gitignore` excludes:
@@ -579,93 +678,91 @@ dbt staging model
         |
         | type conversion, trimming, null handling, date parsing, boolean standardization
         v
-BigQuery analytics dataset
-        |
-        | initial dbt tests
-        v
 Validated staging table
         |
-        | notebook-based profiling and grain analysis
+        | dbt tests and notebook-based profiling
         v
-Documented staging validation findings
+dbt fact model: fct_flights
+        |
+        | surrogate key generation, type tightening, fact-level tests
+        v
+Tested flight-record fact table
 ```
 
 Cloud Run automation is intentionally deferred until the source loading, schema behavior, and transformation logic are understood.
 
-The current pipeline is not yet fully automated, but the core data flow has been proven manually from raw source data into a tested analytics-layer dbt model.
+The current pipeline is not yet fully automated, but the core data flow has been proven manually from raw source data into a tested staging layer and a tested flight-record fact model.
 
 ## Next Implementation Steps
 
-### 1. Promote validation findings into model design
+### 1. Build the first business-facing mart
 
-The first notebook-based staging validation pass is complete.
+The next modeling increment should build a mart from `fct_flights`.
 
-The validation confirmed that the staging model preserves the current raw-to-staging shape, safely handles priority conversions, and exposes a natural-key limitation in the source data.
+Recommended first mart:
 
-Immediate follow-up actions:
+```text
+mart_route_performance_monthly
+```
 
-- keep the validation notebook in the repository as the supporting analysis artifact;
-- document the final fact-table grain as one row per source flight record;
-- generate a surrogate key in the first fact model;
-- retain natural-key fields for traceability;
-- avoid using outcome fields such as `is_cancelled` as natural identifiers; and
-- promote recurring validation checks into dbt tests where appropriate.
+This mart should convert the tested flight-record fact table into a business-facing analytical output.
+
+Potential measures include:
+
+- total flights;
+- completed flights;
+- cancelled flights;
+- cancellation rate;
+- diverted flights;
+- diversion rate;
+- average departure delay;
+- average arrival delay;
+- on-time arrival rate;
+- average elapsed time;
+- average air time;
+- average distance; and
+- delay-cause totals.
+
+Potential grouping fields include:
+
+- flight month;
+- marketing carrier;
+- operating carrier;
+- origin;
+- destination;
+- route; and
+- airport sequence identifiers.
+
+This mart is a better next step than automation because it proves that the modeled data can support useful analytical questions.
 
 ### 2. Strengthen dbt tests
 
-Initial dbt tests passed, but the test suite should be expanded.
+The current dbt test suite now covers the staging model and the first fact model.
 
-Planned tests include:
+Planned testing improvements include:
 
 - accepted values for boolean fields;
-- non-null tests for core identifiers;
 - accepted ranges for month, day, quarter, and day-of-week fields;
-- not-null tests for flight-date and route-defining fields;
-- duplicate checks once the natural grain is finalized;
-- relationship tests once dimension tables exist; and
-- custom tests for failed casts or invalid source values.
+- non-null tests for route-defining fields;
+- relationship tests once dimension tables exist;
+- mart-level tests for derived metrics;
+- custom tests for failed casts or invalid source values; and
+- source freshness or ingestion-batch checks after automated ingestion exists.
 
-### 3. Evaluate the flight-level grain
+### 3. Build intermediate models when the logic earns it
 
-A natural key must be evaluated rather than assumed.
+Intermediate models are intentionally deferred until reusable or complex business logic emerges.
 
-Candidate fields include:
-
-- flight date;
-- operating carrier;
-- marketing carrier;
-- flight number;
-- origin;
-- destination;
-- scheduled departure time; and
-- duplicate indicator.
-
-The fact table should not be built until the project clearly defines what one row represents.
-
-The current validated grain is:
+Likely intermediate models include:
 
 ```text
-one row per source flight record
+int_flights_with_normalized_times
+int_flights_with_delay_categories
+int_flights_with_route_keys
+int_flights_with_operational_status
 ```
 
-The available natural identifiers do not fully guarantee uniqueness for every record in the current sample. The first fact model should therefore use a generated surrogate key while preserving the natural-key fields for traceability.
-
-### 4. Build the first fact model
-
-The next model should be a flight-level fact table.
-
-Initial `fct_flights` responsibilities:
-
-- select trusted staged fields;
-- define the grain;
-- include core date, carrier, airport, route, cancellation, diversion, delay, duration, and distance fields;
-- exclude raw-only fields that are not analytically useful yet;
-- preserve enough identifiers to trace back to staging; and
-- provide a stable base for future marts.
-
-### 5. Handle time fields
-
-The current staging model leaves airline time fields as cleaned strings.
+The first strong candidate is a time-normalization model because airline time codes require special handling.
 
 Fields requiring later handling include:
 
@@ -679,7 +776,7 @@ arr_time
 first_dep_time
 ```
 
-These fields require special logic because source values may be stored in compact formats such as:
+These values may be stored in compact formats such as:
 
 ```text
 5
@@ -690,39 +787,37 @@ These fields require special logic because source values may be stored in compac
 
 Time normalization should be handled carefully, especially for overnight flights and arrival dates that may roll into the next day.
 
-### 6. Build intermediate models
+### 4. Build dimensions
 
-Potential reusable logic includes:
-
-- normalized scheduled and actual timestamps;
-- overnight flight handling;
-- cancellation and diversion classification;
-- delay-category calculations;
-- route identifiers;
-- airport-hour aggregation; and
-- operational reliability measures.
-
-### 7. Build marts
-
-Planned marts include:
+Potential dimension models include:
 
 ```text
-fct_flights
 dim_airport
 dim_carrier
 dim_route
 dim_date
+```
+
+These should be created when they support specific marts or reduce repeated logic.
+
+The project should avoid creating a generic star schema solely for appearance. Dimensional structure should follow actual analytical use cases.
+
+### 5. Build additional marts
+
+Planned marts include:
+
+```text
 mart_airport_reliability_daily
 mart_route_performance_monthly
 mart_carrier_reliability
 mart_delay_causes
 ```
 
-Final model structure will be based on actual analytical requirements rather than created solely to mimic a generic star schema.
+Final mart structure will be based on actual analytical requirements and validated source behavior.
 
-### 8. Automate ingestion
+### 6. Automate ingestion
 
-After manual loading and transformation are stable:
+After manual loading, staging, fact modeling, and initial marts are stable:
 
 ```text
 Cloud Scheduler
@@ -751,7 +846,7 @@ The job should support:
 - logging; and
 - explicit failure behavior.
 
-### 9. Add CI/CD
+### 7. Add CI/CD
 
 Planned GitHub Actions checks include:
 
@@ -791,6 +886,12 @@ Long-lived service-account keys are avoided.
 
 The project uses a limited development sample, serverless services, deliberate query execution, and disposable infrastructure during the early learning phase.
 
+### Validated data modeling
+
+The project tests assumptions about grain and natural keys before building downstream models.
+
+When the available natural identifiers did not fully guarantee uniqueness, the fact model used a generated surrogate key and documented the source limitation rather than forcing an outcome field into the business grain.
+
 ### Honest documentation
 
 Completed work, planned work, and unresolved decisions are documented separately. Planned services are not presented as already implemented.
@@ -816,10 +917,13 @@ This project demonstrates the ability to:
 - use a notebook to validate staging output and document modeling decisions;
 - evaluate candidate natural keys rather than assuming grain;
 - recognize when available source identifiers are insufficient and justify surrogate-key usage;
+- build a first fact model from a validated staging layer;
+- tighten analytical numeric fields from defensive staging types into fact-table types;
+- add and pass fact-level dbt tests;
 - maintain secure repository boundaries through `.gitignore`;
 - reduce an overambitious architecture into testable delivery increments; and
 - document not just what worked, but what failed and how it was corrected.
 
 The project is unfinished by design. The repository is intended to show the development process and engineering decisions as the pipeline progresses, rather than publishing only a polished final state.
 
-The current milestone is the first working vertical slice plus validation evidence: Terraform-provisioned infrastructure, raw data loaded into BigQuery, dbt source declaration, staging transformation, analytics-layer output, passing initial dbt tests, and notebook-based staging validation.
+The current milestone is the first working vertical slice plus modeled warehouse output: Terraform-provisioned infrastructure, raw data loaded into BigQuery, dbt source declaration, staging transformation, analytics-layer output, passing staging tests, notebook-based staging validation, a tested `fct_flights` fact model, and a documented surrogate-key decision.
