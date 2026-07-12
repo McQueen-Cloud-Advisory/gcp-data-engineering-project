@@ -2,6 +2,6 @@ name: gcp-data-engineering-project
 version: '2.0.0'
 config-version: 2
 
-profile: gcp-data-engineering-profile
+profile: smm_mcqueencloud_dbt_profile
 
 model-paths: ["models"]
